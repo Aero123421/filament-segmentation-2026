@@ -80,7 +80,11 @@ training file and no model trained on MAGFiLO.
 
 ## Reproduce the submission
 
-**1. Install** (Python 3.12):
+Both configurations were reproduced byte for byte from a fresh GitHub clone;
+see the [verification record](docs/verification.md).
+
+**1. Install** (Python 3.12 with venv support; on Debian/Ubuntu, install the
+matching `python3.12-venv` system package if needed):
 
 ```bash
 git clone https://github.com/Aero123421/filament-segmentation-2026.git
@@ -113,6 +117,7 @@ python fetch_weights.py --config P3   # only the default's files
 **4. Run** `notebooks/pipeline.ipynb` from top to bottom, or headless:
 
 ```bash
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONHASHSEED=0 \
 FILSEG_TEST_DIR=/path/to/test_images \
   jupyter nbconvert --to notebook --execute notebooks/pipeline.ipynb \
     --ExecutePreprocessor.kernel_name=filseg --ExecutePreprocessor.timeout=-1 \
@@ -130,7 +135,9 @@ path), `FILSEG_DEVICE` (`cuda` or `cpu`; default: CUDA if available),
 `FILSEG_LIMIT` (only the first *N* images, for a quick check) and
 `FILSEG_THREADS` (CPU threads; default: 1). The notebook fixes seeds to 0,
 disables TF32 and cuDNN benchmarking, and enables deterministic cuDNN,
-matching the settings used for the expected CSV hashes. Keep the default
+matching the settings used for the expected CSV hashes. The headless command also
+fixes BLAS/OpenMP threads and the Python hash seed; use the same environment variables
+when launching Jupyter interactively. Keep the default
 single thread and CUDA 12.8 environment for the byte-for-byte comparison.
 It also records the CSV hash, inference timings and peak memory.
 
