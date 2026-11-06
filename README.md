@@ -11,8 +11,10 @@ targets, five with an EfficientNetV2-S encoder; one per cross-validation fold ea
 predicts a filament probability for every pixel at native resolution, and a
 post-processing step turns the probability map into instances. The trained weights are
 included (37 weight files, 1539 MB in total, at most 45 MB per file (including the
-refiner and the tree model)), so the submission is reproduced on a GPU or a CPU without
-retraining and without network access.
+refiner and the tree model)), so inference can run on a GPU or a CPU without retraining
+and without network access.
+
+The technical report is submitted separately to the organisers.
 
 This repository bundles two configurations that share most of their weights.
 **P3 (the default)** is our primary submission: the four
@@ -63,20 +65,22 @@ test images give, for P3, 1110 instances and `submission.csv` SHA-256
 `6ce0bcfc5afdcc3dc0bd88886287e18017d9407de62e0df850ad0488c6eb467a` (public leaderboard
 0.41). For P the SHA-256 is
 `f4fce72fe54f088d9f7f3d433ff9ce7eb93ad52d12fe1108942703314cb76021` (public leaderboard
-0.4). CPU (FP32) runs differ from the GPU run only in boundary pixels; the instance
-counts agree. *Validation protocol.* The 707 training images are split into 5 folds by
-image (`folds.csv`), so the one to three independent annotations of an image never
-straddle training and validation; the folds are balanced by year, observatory and number
-of annotators. Every fold model is scored only on the images it did not see
-(out-of-fold). As in the official evaluation, each annotator's label set of an image is
-a separate entry and PQ is accumulated over all entries. The post-processing parameters
-of fold *k* were chosen on the other four folds only ("cross-fold"); the parameters used
-for the test set are the best ones on all out-of-fold predictions.
+0.4). CPU inference uses FP32. Full P3 CPU parity is unverified here; the byte-identical
+reference uses the specified RTX 3060 FP16 environment.
 
-The public leaderboard served only as a sanity check. The test images belong
-to the public MAGFiLO release, so very high leaderboard scores are reachable
-only through leaked labels; we used no annotations besides the competition's
-training file and no model trained on MAGFiLO.
+*Validation protocol.* The 707 training images are split into 5 folds by image
+(`folds.csv`), so the one to three independent annotations of an image never
+straddle training and validation; the folds are balanced by year, observatory
+and number of annotators. Every fold model is scored only on the images it did
+not see (out-of-fold). As in the official evaluation, each annotator's label set
+of an image is a separate entry and PQ is accumulated over all entries. The
+post-processing parameters of fold *k* were chosen on the other four folds only
+("cross-fold"); the parameters used for the test set are the best ones on all
+out-of-fold predictions.
+
+The public MAGFiLO release contains labelled test images. We used only competition
+training annotations and ImageNet initialisation; no external MAGFiLO-trained
+checkpoint was used.
 
 ## Reproduce the submission
 
@@ -99,7 +103,8 @@ python -m ipykernel install --sys-prefix --name filseg --display-name 'Python (f
 The CUDA 12.8 wheels above reproduce the tested GPU environment (Linux,
 Python 3.12, RTX 3060). A compatible NVIDIA driver is required. For a CPU-only
 machine, replace the PyTorch index URL with `https://download.pytorch.org/whl/cpu`;
-CPU inference uses FP32 and does not reproduce the GPU CSV byte for byte.
+CPU inference uses FP32. Full P3 CPU parity is unverified here; the byte-identical
+reference uses the specified RTX 3060 FP16 environment.
 
 **2. Check the weights.** All 37 model files are committed directly in
 `weights/` as ordinary Git files (1,538.6 MB total, each below 50 MB).
@@ -111,8 +116,11 @@ python fetch_weights.py            # all bundled configurations
 python fetch_weights.py --config P3   # only the default's files
 ```
 
-**3. Add the data:** copy the 180 test JPEGs to `test_images/` (or set
-`FILSEG_TEST_DIR` to their folder).
+**3. Add the data.** Download and extract the
+[competition data](https://www.kaggle.com/competitions/filament-segmentation-2026/data)
+after accepting the competition rules. Set `FILSEG_TEST_DIR` to the extracted
+`MAGFiLO_1.0_Kaggle_2026/test/test_images/` directory, or copy its 180 JPEGs to
+`test_images/`.
 
 **4. Run** `notebooks/pipeline.ipynb` from top to bottom, or headless:
 
@@ -170,9 +178,9 @@ instead (`FilamentPipeline(PipelineConfig.from_json("configs/P.json"),
 
 ## How the pipeline works
 
-All settings below come from `pipeline_config.json` (the default
-P3; the alternate is `configs/P.json`); the
-code is in `filseg/`.
+Weights, TTA and deployment thresholds come from `pipeline_config.json` (the default
+P3; the alternate is `configs/P.json`). Fixed crop,
+tree-level and refinement rules are defined in `filseg/`.
 
 **1. Input** (`filseg/preprocess.py`). The JPEG is read as 8-bit grayscale. The
 solar disk lies inside the central 1888×1888 square, so the network sees that
@@ -223,7 +231,7 @@ gets at most one label, so instances never overlap.
 axis into a 512×160 crop (image, probability, this instance, the other
 instances) and re-segmented by a small U-Net; the refined masks replace the
 stage-1 masks under fixed rules (refined probability > 0.4,
-only components touching the instance, never deleting an instance). The
+seed-touching components and seed fallback; overlap arbitration can drop instances). The
 default averages 10 cross-fit refiners with 4-flip test-time
 augmentation; the alternate averages 5.
 
@@ -240,10 +248,14 @@ along their direction.
 
 ## Reproduce the training
 
-Optional: the weights in `weights/` are the result of these steps. Training
-uses a CUDA GPU when available (a CPU works for short smoke runs) and the
-competition's training data
-(`MAGFiLO_1.0_Kaggle_2026/train`: `train_images/` and the annotation JSON).
+This repository reproduces P3/P test inference and includes executable data
+preparation and base-model training code. Tree fitting and refiner training are
+described below but their training code is not packaged. No training is needed
+to reproduce the submission with the bundled weights.
+
+Optional base-model training uses a CUDA GPU when available (a CPU works for short smoke
+runs) and the competition's training data (`MAGFiLO_1.0_Kaggle_2026/train`:
+`train_images/` and the annotation JSON).
 
 **1. Build the training cache** (CPU, about 10 minutes, 1.6 GB): each image is
 cropped to its central 1888×1888 square and stored with one mask per annotator.
@@ -258,10 +270,11 @@ sample stream continuing where stage 1 stopped (`--sample-offset` = stage-1 step
 batch 4). Both stages use AdamW, a cosine learning-rate decay, FP16 mixed precision, the
 loss BCE + 0.5 × soft Dice and an exponential moving average of the weights, which is
 what gets saved. The held-out fold is never used for training. The commands below
-reproduce the bundled weights (five U-Nets with a ResNet34 encoder trained on soft
-(annotator-averaged) targets; five U-Nets with an EfficientNetV2-S encoder; five U-Nets
-with an EfficientNetV2-S encoder trained on soft (annotator-averaged) targets; five
-U-Nets with an EfficientNetV2-S encoder; seed 20261103).
+implement the bundled base models' training recipes (five U-Nets with a ResNet34 encoder
+trained on soft (annotator-averaged) targets; five U-Nets with an EfficientNetV2-S
+encoder; five U-Nets with an EfficientNetV2-S encoder trained on soft
+(annotator-averaged) targets; five U-Nets with an EfficientNetV2-S encoder; seed
+20261103).
 
 ```bash
 for FOLD in 0 1 2 3 4; do
@@ -303,41 +316,34 @@ update their checksums in `weights/manifest.json`, which the notebook and
 horizon (60,000 steps; `--sample-offset 240000`): it is an independent
 60k-horizon run, not a 30k run continued for another 30k steps.
 
+**3. Fit the component trees (description only).** Each tree is fitted on the
+out-of-fold probability maps of all 707 training images: every tree node receives the
+exact IoU contribution it would add against the training annotations, and a LightGBM
+regressor (160 trees, learning rate 0.04, minimum 80 samples per leaf, L2 5.0) learns to
+predict it from the 43 node features. The default P3 tree (`weights/P3_tree.json`) is
+bagged: its score is the mean utility of a 7-leaf and a 15-leaf member, selected with
+tau = 0.28. The alternate P tree (`weights/P_tree.json`) is the single 15-leaf model
+chosen by nested selection, with tau = 0.26. Both boosters are exported as text models
+inside portable JSON; the selection threshold `tree_tau` lives in the configuration
+JSON, so a refitted tree is swapped in without touching code. The release code for
+fitting the trees is not bundled; the fitted models are, and inference needs no
+refitting.
 
-**3. Fit the component trees.** Each tree is fitted on the out-of-fold
-probability maps of all 707 training images: every tree node receives the
-exact IoU contribution it would add against the training annotations, and
-a LightGBM regressor (160 trees, learning rate 0.04, minimum 80 samples
-per leaf, L2 5.0) learns to predict it from the 43 node features. The
-default P3 tree (`weights/P3_tree.json`) is bagged: its
-score is the mean utility of a 7-leaf and a 15-leaf member, selected with
-tau = 0.28. The alternate
-P tree (`weights/P_tree.json`) is the single 15-leaf
-model chosen by nested selection, with tau = 0.26.
-Both boosters are exported as text models inside portable JSON; the
-selection threshold `tree_tau` lives in the configuration JSON, so a
-refitted tree is swapped in without touching code. The release code for
-fitting the trees is not bundled; the fitted models are, and inference
-needs no refitting.
-
-**4. Train the refiners.** The stage-1 instances of the training images
-(the component-tree selections of the out-of-fold probability maps) are
-cut into 512×160 crops along their principal axis
-(`filseg/refine/crops.py`: grayscale image, stage-1 probability, this
-instance, the other instances). The target of a crop is the mean of the
-annotators' masks matched to that instance (best IoU per annotator set
-above 0.05), warped into crop coordinates with `extract_target`. Each
-refiner is a 4-channel ResNet34 U-Net starting from ImageNet weights,
-trained for 2,500 steps at batch 24 with AdamW (learning rate 3e-4,
-one-cycle schedule, weight decay 1e-4), the loss BCE + 0.5 × soft Dice,
-FP16 mixed precision and whole-batch flip and brightness augmentation.
-The fold models are cross-fit: the refiner that refines fold *k* at
-validation time never saw fold *k*. At test time the default averages
-its 10 refiners (two seeds × five folds)
-and the alternate its 5 (one seed × five folds),
-each with 4-flip averaging. Swapping in retrained refiners means
-replacing the files in `weights/refiner/` and their entries in the
-configuration JSON and `weights/manifest.json` — no code change.
+**4. Train the refiners (description only).** The stage-1 instances of the training
+images (the component-tree selections of the out-of-fold probability maps) are cut into
+512×160 crops along their principal axis (`filseg/refine/crops.py`: grayscale image,
+stage-1 probability, this instance, the other instances). The target of a crop is the
+mean of the annotators' masks matched to that instance (best IoU per annotator set >
+0.05 or intersection ≥ 20 px), warped into crop coordinates with `extract_target`. Each
+refiner is a 4-channel ResNet34 U-Net starting from ImageNet weights, trained for 2,500
+steps at batch 24 with AdamW (learning rate 3e-4, one-cycle schedule, weight decay
+1e-4), the loss BCE + 0.5 × soft Dice, FP16 mixed precision and whole-batch flip and
+brightness augmentation. The fold models are cross-fit: the refiner that refines fold
+*k* at validation time never saw fold *k*. At test time the default averages its 10
+refiners (two seeds × five folds) and the alternate its 5 (one seed × five folds), each
+with 4-flip averaging. Swapping in retrained refiners means replacing the files in
+`weights/refiner/` and their entries in the configuration JSON and
+`weights/manifest.json` — no code change.
 
 **On a 24 GB GPU (e.g. a Colab L4).** Add `--channels-last --fused-adamw` to
 both stages. They change only the memory layout and the optimiser kernel, not
@@ -358,11 +364,8 @@ parallel.
   above is not a prediction of the test score (the public leaderboard
   reads about 0.05 lower for reasons that include the test labels, which
   we did not use or tune against).
-- **Device numerics.** The expected SHA-256 values above are for the
-  RTX 3060 FP16 pipeline. CPU (FP32) runs agree on every instance but
-  flip boundary pixels, so their CSV bytes differ; re-running the GPU
-  pipeline with the same weights and settings reproduces the bytes
-  exactly.
+- **Device numerics.** CPU inference uses FP32. Full P3 CPU parity is unverified
+  here; the byte-identical reference uses the specified RTX 3060 FP16 environment.
 - **Annotator disagreement is real.** One to three annotators labelled
   each training image independently; soft targets average them, but no
   target removes the disagreement, and thin, faint or branching
