@@ -1,0 +1,77 @@
+{
+  "weights": [
+    "S_fold0.pt",
+    "S_fold1.pt",
+    "S_fold2.pt",
+    "S_fold3.pt",
+    "S_fold4.pt",
+    "V_fold0.pt",
+    "V_fold1.pt",
+    "V_fold2.pt",
+    "V_fold3.pt",
+    "V_fold4.pt",
+    "V_soft_fold0.pt",
+    "V_soft_fold1.pt",
+    "V_soft_fold2.pt",
+    "V_soft_fold3.pt",
+    "V_soft_fold4.pt",
+    "V60k_fold0.pt",
+    "V60k_fold1.pt",
+    "V60k_fold2.pt",
+    "V60k_fold3.pt",
+    "V60k_fold4.pt"
+  ],
+  "postprocess": {},
+  "tta": "d4",
+  "precision": "fp16",
+  "quantize_uint8": true,
+  "refiner_enabled": true,
+  "refiner_weights": [
+    "P3_refiner_s20261104_fold0_fp16.pt",
+    "P3_refiner_s20261104_fold1_fp16.pt",
+    "P3_refiner_s20261104_fold2_fp16.pt",
+    "P3_refiner_s20261104_fold3_fp16.pt",
+    "P3_refiner_s20261104_fold4_fp16.pt",
+    "P3_refiner_s20261105_fold0_fp16.pt",
+    "P3_refiner_s20261105_fold1_fp16.pt",
+    "P3_refiner_s20261105_fold2_fp16.pt",
+    "P3_refiner_s20261105_fold3_fp16.pt",
+    "P3_refiner_s20261105_fold4_fp16.pt"
+  ],
+  "refine_threshold": 0.4,
+  "weight_groups": [
+    [
+      "S_fold0.pt",
+      "S_fold1.pt",
+      "S_fold2.pt",
+      "S_fold3.pt",
+      "S_fold4.pt"
+    ],
+    [
+      "V_fold0.pt",
+      "V_fold1.pt",
+      "V_fold2.pt",
+      "V_fold3.pt",
+      "V_fold4.pt"
+    ],
+    [
+      "V_soft_fold0.pt",
+      "V_soft_fold1.pt",
+      "V_soft_fold2.pt",
+      "V_soft_fold3.pt",
+      "V_soft_fold4.pt"
+    ],
+    [
+      "V60k_fold0.pt",
+      "V60k_fold1.pt",
+      "V60k_fold2.pt",
+      "V60k_fold3.pt",
+      "V60k_fold4.pt"
+    ]
+  ],
+  "postprocess_method": "component_tree",
+  "tree_model": "P3_tree.json",
+  "tree_tau": 0.28,
+  "tree_min_area": 50,
+  "tree_close_radius": 0
+}

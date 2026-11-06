@@ -1,0 +1,35 @@
+# Outputs of the notebook and of retraining
+submission*.csv
+submission*.csv.timing.json
+notebooks/pipeline_executed*.ipynb
+prepared/
+runs/
+# Competition data is not redistributed
+test_images/
+data/
+# Python / Jupyter
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+
+# Local data, outputs and environment files
+outputs/
+venv/
+env/
+.env
+.env.*
+*.log
+*.csv
+!folds.csv
+*.timing.json
+*.executed.ipynb
+MAGFiLO*/
+train_images/
+*.jpeg
+*.jpg
+kaggle.json
+.ipython/
+.jupyter/
+.mplconfig/

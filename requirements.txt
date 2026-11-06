@@ -1,0 +1,19 @@
+# Release environment (Python 3.12, versions verified in the project venv).
+# Install torch and torchvision from the CUDA 12.8 index first (see README).
+# The same version pins also accept the optional CPU wheels.
+torch==2.11.0
+torchvision==0.26.0
+segmentation-models-pytorch==0.6.0
+lightgbm==4.6.0
+timm==1.0.30
+opencv-python-headless==5.0.0.93
+pycocotools==2.0.11
+pandas==3.1.0
+numpy==2.5.4
+scipy==1.18.1
+matplotlib==3.11.2
+pillow==13.0.0
+pytest==9.2.0
+jupyter==1.1.1
+nbconvert==7.17.2
+ipykernel==7.4.0
